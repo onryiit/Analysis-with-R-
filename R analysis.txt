@@ -1,0 +1,477 @@
+install.packages("tidyverse")
+install.packages("ggplot2")
+install.packages("factoextra")
+install.packages("knitr")
+install.packages("caret")
+install.packages("Amelia")
+install.packages("ClusterR")
+install.packages("dplyr")
+install.packages("fpc")
+install.packages("claas")
+install.packages("VIM")
+install.packages("mice")
+install.packages("lattice")
+install.packages("ROSE")
+install.packages("randomForest")
+install.packages("caret")
+install.packages("e1071")
+install.packages("mlbench")
+
+
+
+
+
+
+library(tidyverse)
+library(ggplot2)
+library(factoextra)
+library(knitr)
+library(caret)
+library(Amelia)
+library(ClusterR)
+library(stats)
+library(dplyr)
+library(fpc)
+library(class)
+library(VIM)
+library(mice)
+library(lattice)
+library(ROSE)
+library(randomForest)
+library(caret)
+library(e1071)
+library(mlbench)
+
+
+
+
+
+
+
+
+#Import The data
+dataset <- read.csv("Project/StudentReferences.csv")
+
+#We can show data between 1 and 6 with this code.
+head(dataset) 
+
+#With this code, we can show the definition of our data. Like INT, CHR
+str(dataset) #bu kod ile verilerimizin tanımını gösterebiliriz.INT,CHR gibi
+
+#we visualized the two data we wanted from our data. To talk about these data. We have a column called self-reading rather than listening to someone else. With this we created a visualization of our age column.
+ggplot(data = dataset) +
+  geom_point(mapping = aes(x = Age,  y = ILBRTLS))
+
+#We applied PCA test to our data from 2 to 17 and you can see the results below. When we look at the summary of our pca results, the first 4 components are sufficient for us, as they capture about 48.5% variability in the data.
+dataset.pr <- prcomp(dataset[c(2:17)], center = TRUE, scale = TRUE)
+summary(dataset.pr)
+
+#Let's see this on a plot.
+screeplot(dataset.pr, type = "l", npcs = 15, main = "Screeplot of the first 15 PCs")
+abline(h = 1, col="red", lty=5)
+legend("topright", legend=c("Eigenvalue = 1"),
+       col=c("red"), lty=5, cex=0.6)
+
+#We have a line under the name of eigenvalue, which you can see in the image, we can say that this line is the standard deviation of our system. And only 4 of our points are above the eigenvalue.
+cumplot <- cumsum(dataset.pr$sdev^2 / sum(dataset.pr$sdev^2))
+plot(cumplot[0:15], xlab = "PC #", ylab = "Amount of explained variance", main = "Cumulative variance plot")
+abline(v = 4, col="blue", lty=5)
+abline(h = 0.48544, col="red", lty=5)
+legend("topleft", legend=c("Cut-off @ PC4"),
+       col=c("blue"), lty=5, cex=0.6)
+
+#In the image you see below, we have shown you a plot of PC1 and PC2. We can see the clustering more clearly.
+plot(dataset.pr$x[,1],dataset.pr$x[,2], xlab="PC1 (25.1%)", ylab = "PC2 (34.1%)", main = "PC1 / PC2 - plot")
+
+
+#The image you see below shows you 2D the clustering of 17 values according to learner categories. To say these types of learners. A=Aural V=Visual K=Kinesthetic Learners.
+fviz_pca_ind(dataset.pr, geom.ind = "point", pointshape = 24, 
+             pointsize = 2, 
+             fill.ind = dataset$Learner, 
+             col.ind = "black", 
+             palette = "jco", 
+             addEllipses = TRUE,
+             label = "var",
+             col.var = "black",
+             repel = TRUE,
+             legend.title = "Learner") +
+  ggtitle("2D PCA-plot from 17 feature dataset") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+#Logic Regression
+
+#We checking null data in our datasets.And As you can see the image, We don't have null data.
+missmap(dataset)
+
+#In order to be able to see and analyze our data more easily, we have shown the data in tabular form.
+datashow <- t(head(dataset))
+kable(datashow,format="markdown")
+
+#Here is the code we use to see our data types.
+str(dataset)
+#There are two dependent variables in our data. This data is recognized by r studio as characters. Let's replace them with factor.And Let's use the is.factor command to check whether there is a factor or not.
+dataset$Gender <- as.factor(dataset$Gender)
+is.factor(dataset$Gender)
+
+dataset$Learner <- as.factor(dataset$Learner)
+is.factor(dataset$Learner)
+#In order to see the correlation between our columns, we took our data as below and assigned it to the cor function.
+correlations <- cor(dataset[c(2:17)])
+corrplot::corrplot(correlations,method = "square",tl.cex = 0.6, tl.col = "black")
+
+#In some of our columns, positive correlation bonds were formed, although not very strong. The name of this problem is multicollinearity. But before that, let's create a logic regression. For this we will assign the seed 42 to keep the randomness constant.
+set.seed(42)
+#Afterwards, we divided our data into two as test and train to work on the data.
+#We have allocated 80 percent of our data, and 80 percent of our data is train and 20 percent is test.
+sampledata<- createDataPartition(y= dataset$Gender,p=0.8,list = FALSE)
+train_data <- dataset[sampledata,]
+test_data <- dataset[-sampledata,]
+
+#we create our model.
+logistic_data_Model <- glm(Gender~.,data = train_data,family = "binomial")
+
+promodel <- predict(logistic_data_Model,newdata=test_data,type="response")
+predmodel <- ifelse(promodel > 0.5,"Male","Female")
+confusionMatrix(test_data$Gender,as.factor(predmodel))
+
+#We have already defined these sections in the PCA testing our data. And after our model, we applied the PCA test to the train data.
+pcacomp <- prcomp(train_data[2:17], center = TRUE, scale = TRUE)
+summary(pcacomp)
+
+screeplot(pcacomp, type = "l", npcs = 15, main = "Screeplot of the first 15 PCs")
+abline(h = 1, col="red", lty=5)
+legend("topright", legend=c("Eigenvalue = 1"),
+       col=c("red"), lty=5, cex=0.6)
+
+plotcum <- cumsum(pcacomp$sdev^2 / sum(pcacomp$sdev^2))
+plot(plotcum[0:15], xlab = "PC #", ylab = "Amount of explained variance", main = "Cumulative variance plot")
+abline(v = 4, col="red", lty=5)
+abline(h = 0.48544, col="red", lty=5)
+legend("topleft", legend=c("Cut-off @ PC4"),
+       col=c("red"), lty=5, cex=0.6)
+
+#Now let's look at correlation again.As you can see, there is no connection between our columns. When we looked at the first correlation, there was a positive correlation between some columns and it was called multicollinearity, and we solved this problem.
+corr <- cor(pcacomp$x[,c(1:4)])
+corrplot::corrplot(corr,method = "square", tl.col = "black")
+
+#we will now be able to create a better model using fewer columns. If you ask why we chose 4 columns. When we PCA test our data above, it's only our first 4 data that stays above our self-density, so we use the first column as a percentage.
+set.seed(42)
+data_pca <- data.frame(Gender=train_data[,"Gender"],pcacomp$x[,0:4])
+head(data_pca)
+
+
+set.seed(42)
+model_pca <- glm(Gender ~ .,data= data_pca,family = "binomial")
+test_data_pca <- predict(pcacomp,newdata = test_data)
+
+
+prob <- predict(model_pca , newdata = data.frame(test_data_pca[,1:4]),type = "response")
+pred <- factor(ifelse(prob>0.5,"Male","Female"))
+confusionMatrix(test_data$Gender,as.factor(pred))
+
+
+
+                                          
+                                                    #K-Means
+
+
+
+#With R studio, we can perform clustering using the kmeans() function. But before clustering, we need to find out how many inputs there will be.
+#As seen here, the pca values of all our data are visible. But for a strong clustering operation, we must reference strong data. For this reason, when we look at the data, our first 4 data are very strong data. Let's see how he decides this. We had an eigendensity line where we tested PCA before, and for our computer this value was 1. so we will do the clustering operations with the first 4 data.
+datasett.pr <- prcomp(dataset[,c(2:17)], center = TRUE, scale = TRUE)
+summary(datasett.pr)
+
+
+#In this part, we will use a random number generator with set.seed and see the clustering of the data more clearly. We will increase the seed at each step and see how the clustering will be.
+set.seed(102)
+KMeans <- kmeans(dataset[,3:6], 2)
+plot(datasett.pr$x[,1],datasett.pr$x[,2], xlab="PC1", 
+     ylab = "PC2 ", 
+     main = "PC1 / PC2 - plot", 
+     col=KMeans$cluster)
+
+
+KMeans$centers
+
+
+table(KMeans$cluster, dataset$Learner)
+
+
+set.seed(103)
+
+KMeans <- kmeans(dataset[,3:6], 3)
+plot(datasett.pr$x[,1],datasett.pr$x[,2], xlab="PC1", 
+     ylab = "PC2 ", 
+     main = "PC1 / PC2 - plot", 
+     col=KMeans$cluster )
+
+
+KMeans
+
+
+KMeans$centers 
+
+table(KMeans$cluster, dataset$Learner)
+
+
+set.seed(104)
+KMeans <- kmeans(dataset[,3:6], 4)#four is cluster number 
+plot(datasett.pr$x[,1],datasett.pr$x[,2], xlab="PC1", 
+     ylab = "PC2 ", 
+     main = "PC1 / PC2 - plot", 
+     col=KMeans$cluster )
+
+
+
+table(predicted=KMeans$cluster, true=dataset$Learner)
+
+
+KMeans<- kmeans(dataset[,3:6], 3)
+
+fviz_cluster(KMeans, data = dataset[,3:6])
+
+
+set.seed(900)
+
+distance <- dist(dataset[,3:6], method="euclidean") 
+
+fviz_dist(distance, gradient = list(low = "#00A823", mid = "white", high = "#FF0000"))
+
+
+                                              #Hiercial Clustering
+
+#We reloaded the data to avoid confusion in the data. and assign it to another variable.
+datasetHC <- read.csv("Project/StudentReferences.csv")
+
+head(datasetHC) #show our data
+
+distance <- dist(dataset[,5], method="euclidean") #We selected the data in the 5th index.We selected the data in the 5th index.
+
+hier <- hclust(distance, method="average")
+plot(hier) 
+rect.hclust(hier, k=2, border="red")
+
+
+hierc <- cutree(hier, 3)
+table(predicted=hierc, true=dataset$Learner)
+
+#However, blackout occurs in the diagram due to the same data redundancy. When the diagram is enlarged, it can be seen more clearly.
+#We divided the diagram into three parts because we separated our data according to the distinctive learner(k=3).
+plot(hier) 
+rect.hclust(hier, k=3, border="red") 
+
+
+
+#K-means gives us more options in terms of performance and good visualization. I think k-means is better than hiercial.
+
+
+
+#classification 
+
+#8.1 
+#Since we made logic regression, which is one of the classification techniques, in the 6th stage, we went directly to 8.2.
+
+#k-nearest Neighbours
+
+
+datasetKNN <- read.csv("Project/StudentReferences.csv")
+
+head(datasetKNN) #show our data
+
+#Generate a random number that is 90% of the total number of rows in dataset
+ran <- sample(1:nrow(datasetKNN), 0.9 * nrow(datasetKNN))
+
+#the normalization function is created
+nor <-function(x) { (x -min(x))/(max(x)-min(x))   }
+
+#We used columns 3 to 6 of the dataset for normalization, as they are estimators
+datasetKNN_norm <- as.data.frame(lapply(datasetKNN[,c(3,4,5,6)], nor))
+summary(datasetKNN_norm)
+
+#we divided our data into train and test
+datasetKNN_train <- datasetKNN_norm[ran,] 
+
+datasetKNN_test <- datasetKNN_norm[-ran,] 
+
+#We assigned it to datasetKNN_target_Category to keep our distinctive column, the learner column, in a separate place.And We take test from out data.
+datasetKNN_target_category <- datasetKNN[ran,18]
+
+datasetKNN_test_category <- datasetKNN[-ran,18]
+
+#we run knn function
+pr <- knn(datasetKNN_train,datasetKNN_test,cl=datasetKNN_target_category,k=13)
+
+tab <- table(pr,datasetKNN_test_category)
+
+#and we take our accuarcy.And my accuracy value ise 52.89 .
+accuracy <- function(x){sum(diag(x)/(sum(rowSums(x)))) * 100}
+accuracy(tab)
+
+#Here too, logic regression is better for us, because we can make our data even stronger with logic. And we can increase our accuracy rate.
+
+
+
+#Missing data
+datasetMS <- read.csv("Project/StudentReferences.csv")
+
+head(datasetMS) #show our data
+
+#change data
+datasetMS[datasetMS == "1"] = NA
+
+
+#The red areas you see in the chart represent missing data. In blue represents our current data.
+#The common link between the students who learn better by reading what the teacher writes on the board and the learners who say they learn by reading the textbooks rather than listening to the lessons is the Learner.
+#that's why we built a model based on that.
+datasetMS_plot <-aggr(datasetMS, col=c('lightblue','red'), numbers=TRUE, sortVars=TRUE, labels=names(data), cex.axis=.7, gap=3, ylab=c("Histogram of missing data","Pattern")) 
+
+
+datasetMS.cc <- lm(ILBRWTWOC ~ Gender + ILMRTLL, data=datasetMS)
+summary(datasetMS.cc)
+
+#we have 147 missing data.
+#This is a three step process.
+
+#1.mice() - simulates missing values
+#2.with() - analyses each of the completed datasets separately 
+#3.pool() - combines all the results together
+
+impute = mice(datasetMS, m=20, printFlag=FALSE, maxit = 40, seed=2525)
+
+fit.mi = with(data=impute, exp = lm(ILBRWTWOC ~ Gender + ILMRTLL))
+
+summary(pool(fit.mi))
+
+
+xyplot(impute, ILMRTLL ~ ILBRWTWOC  | .imp, pch = 20, cex = 1.4)
+
+
+#logic regression with missing data
+
+
+#We checking null data in our datasets.And As you can see the image.
+missmap(datasetMS)
+
+#In order to be able to see and analyze our data more easily, we have shown the data in tabular form.
+datashowMS <- t(head(datasetMS))
+kable(datashowMS,format="markdown")
+
+#Here is the code we use to see our data types.
+str(datasetMS)
+#There are two dependent variables in our data. This data is recognized by r studio as characters. Let's replace them with factor.And Let's use the is.factor command to check whether there is a factor or not.
+datasetMS$Gender <- as.factor(datasetMS$Gender)
+is.factor(datasetMS$Gender)
+
+datasetMS$Learner <- as.factor(datasetMS$Learner)
+is.factor(datasetMS$Learner)
+
+
+#In order to see the correlation between our columns, we took our data as below and assigned it to the cor function.
+correlationsMS <- cor(datasetMS[c(2:17)])
+corrplot::corrplot(correlationsMS,method = "square",tl.cex = 0.6, tl.col = "black")
+
+#In some of our columns, positive correlation bonds were formed, although not very strong. The name of this problem is multicollinearity. But before that, let's create a logic regression. For this we will assign the seed 42 to keep the randomness constant.
+set.seed(42)
+#Afterwards, we divided our data into two as test and train to work on the data.
+#We have allocated 80 percent of our data, and 80 percent of our data is train and 20 percent is test.
+sampledataMS <- createDataPartition(y= datasetMS$Gender,p=0.8,list = FALSE)
+train_dataMS <- datasetMS[sampledata,]
+test_dataMS <- datasetMS[-sampledata,]
+
+#we create our model.
+logistic_data_ModelMS <- glm(Gender~.,data = train_dataMS,family = "binomial")
+
+promodelMS <- predict(logistic_data_ModelMS,newdata=test_dataMS,type="response")
+predmodelMS <- ifelse(promodelMS > 0.5,"Male","Female")
+confusionMatrix(test_dataMS$Gender,as.factor(predmodelMS))
+
+#Z)Imbalanced data
+
+datasetID <- read.csv("Project/StudentReferences.csv",header = TRUE)
+head(datasetID)
+
+str(datasetID)
+
+datasetID.new <- datasetID[sample(nrow(datasetID), 321), ]
+
+prop.table(table(datasetID.new$Gender))
+
+
+
+datasetID.new$Gender<- as.factor(datasetID.new$Gender)
+
+
+
+summary(datasetID.new)
+
+(datasetID.new[,1]=="Female")
+
+  
+
+total <- valueoffemale/0.5 
+
+barplot(prop.table(table(datasetID.new$Gender)),
+        col = rainbow(2),
+        ylim = c(0, 1),
+        main = "Class Distribution")
+
+oversampling_result <- ovun.sample(Gender ~ .,
+                                   data = datasetID.new,
+                                   method = "over",
+                                   N = total,
+                                   seed = 2018)
+
+oversampled_credit <- oversampling_result$data
+table(oversampled_credit$Gender)
+
+barplot(prop.table(table(oversampled_credit$Gender)),
+        col = rainbow(2),
+        ylim = c(0, 1),
+        main = "Class Distribution")
+
+
+
+#c)Classification on the imbalanced data
+
+
+#In some of our columns, positive correlation bonds were formed, although not very strong. The name of this problem is multicollinearity. But before that, let's create a logic regression. For this we will assign the seed 42 to keep the randomness constant.
+set.seed(42)
+#Afterwards, we divided our data into two as test and train to work on the data.
+#We have allocated 80 percent of our data, and 80 percent of our data is train and 20 percent is test.
+sampledata<- createDataPartition(y= datasetID.new$Gender,p=0.8,list = FALSE)
+IMtrain_data <- datasetID.new[sampledata,]
+IMtest_data <- datasetID.new[-sampledata,]
+
+#we create our model.
+logistic_data_Model <- glm(Gender~.,data = IMtrain_data,family = "binomial")
+
+IMpromodel <- predict(logistic_data_Model,newdata=IMtest_data,type="response")
+IMpredmodel <- ifelse(IMpromodel > 0.5,"Male","Female")
+confusionMatrix(IMtest_data$Gender,as.factor(IMpredmodel))
+
+#c2)Classification on the balanced data
+
+
+
+#There are two dependent variables in our data. This data is recognized by r studio as characters. Let's replace them with factor.And Let's use the is.factor command to check whether there is a factor or not.
+oversampled_credit$Gender <- as.factor(oversampled_credit$Gender)
+is.factor(oversampled_credit$Gender)
+
+oversampled_credit$Learner <- as.factor(oversampled_credit$Learner)
+is.factor(oversampled_credit$Learner)
+
+#In some of our columns, positive correlation bonds were formed, although not very strong. The name of this problem is multicollinearity. But before that, let's create a logic regression. For this we will assign the seed 42 to keep the randomness constant.
+set.seed(42)
+#Afterwards, we divided our data into two as test and train to work on the data.
+#We have allocated 80 percent of our data, and 80 percent of our data is train and 20 percent is test.
+BDsampledata<- createDataPartition(y= oversampled_credit$Gender,p=0.8,list = FALSE)
+BDtrain_data <- oversampled_credit[BDsampledata,]
+BDtest_data <- oversampled_credit[-BDsampledata,]
+
+#we create our model.
+logistic_data_Model <- glm(Gender~.,data = BDtrain_data,family = "binomial")
+
+BDpromodel <- predict(logistic_data_Model,newdata=BDtest_data,type="response")
+BDpredmodel <- ifelse(BDpromodel > 0.5,"Male","Female")
+confusionMatrix(BDtest_data$Gender,as.factor(BDpredmodel))
